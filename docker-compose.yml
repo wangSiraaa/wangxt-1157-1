@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: fire-pump-room-web
+    ports:
+      - "${WEB_PORT:-20457}:80"
+    restart: unless-stopped
+    environment:
+      - VITE_APP_TITLE=消防泵房月度试泵管理系统
