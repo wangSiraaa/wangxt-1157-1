@@ -42,8 +42,10 @@ export function AppProvider({ children }) {
     return { canStart: true, reason: '' }
   }, [pumpRooms])
 
-  const checkCanSubmitQualified = useCallback((recordId) => {
-    const record = testRecords.find(r => r.id === recordId)
+  const checkCanSubmitQualified = useCallback((recordIdOrRecord) => {
+    const record = typeof recordIdOrRecord === 'object'
+      ? recordIdOrRecord
+      : testRecords.find(r => r.id === recordIdOrRecord)
     if (!record) return { canSubmit: false, reason: '记录不存在' }
     if (!record.rotationDone) {
       return { canSubmit: false, reason: '主备泵未轮换，不能提交合格' }
@@ -51,8 +53,10 @@ export function AppProvider({ children }) {
     return { canSubmit: true, reason: '' }
   }, [testRecords])
 
-  const checkCanClose = useCallback((recordId) => {
-    const record = testRecords.find(r => r.id === recordId)
+  const checkCanClose = useCallback((recordIdOrRecord) => {
+    const record = typeof recordIdOrRecord === 'object'
+      ? recordIdOrRecord
+      : testRecords.find(r => r.id === recordIdOrRecord)
     if (!record) return { canClose: false, reason: '记录不存在' }
     const abnormalItems = record.abnormalItems || []
     const unretested = abnormalItems.filter(item => !item.retested)

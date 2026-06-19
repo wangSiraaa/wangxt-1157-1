@@ -201,8 +201,10 @@ export default function TestRecordDetail() {
     setErrors([])
   }
 
+  const currentRecord = { ...record, abnormalItems: abnormalList }
+
   const handleSubmitQualified = () => {
-    const result = checkCanSubmitQualified(id)
+    const result = checkCanSubmitQualified(currentRecord)
     if (!result.canSubmit) {
       setErrors([result.reason])
       return
@@ -222,7 +224,7 @@ export default function TestRecordDetail() {
   }
 
   const handleClose = () => {
-    const result = checkCanClose(id)
+    const result = checkCanClose(currentRecord)
     if (!result.canClose) {
       setErrors([result.reason])
       return
@@ -913,11 +915,11 @@ export default function TestRecordDetail() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={checkCanClose(id).canClose ? 'text-success' : 'text-warning'}>
-                {checkCanClose(id).canClose ? '✅' : '⚠️'}
+              <span className={checkCanClose(currentRecord).canClose ? 'text-success' : 'text-warning'}>
+                {checkCanClose(currentRecord).canClose ? '✅' : '⚠️'}
               </span>
               <span>
-                异常复测检查：{checkCanClose(id).canClose ? '全部复测完成，可关闭' : '存在未复测异常，不能关闭'}
+                异常复测检查：{checkCanClose(currentRecord).canClose ? '全部复测完成，可关闭' : '存在未复测异常，不能关闭'}
               </span>
             </div>
           </div>
