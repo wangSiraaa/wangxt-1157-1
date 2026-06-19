@@ -864,6 +864,31 @@ tr:hover td {
   font-weight: 500;
 }
 
+.stacked-bar-chart {
+  align-items: flex-end;
+  height: 180px;
+}
+
+.stacked-bar-item {
+  justify-content: flex-end;
+}
+
+.stacked-bar {
+  display: flex;
+  flex-direction: column-reverse;
+  width: 100%;
+  max-width: 40px;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+  min-height: 4px;
+}
+
+.bar-segment {
+  width: 100%;
+  transition: height 0.5s;
+  min-height: 2px;
+}
+
 .empty {
   text-align: center;
   padding: 40px 20px;

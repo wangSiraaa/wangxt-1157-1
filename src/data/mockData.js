@@ -24,6 +24,27 @@ export const PUMP_STATUS_NAMES = {
   [PUMP_STATUS.CLOSED]: '已关闭'
 }
 
+export const MONTHLY_STATUS = {
+  UNTESTED: 'untested',
+  ABNORMAL: 'abnormal',
+  RETEST_PASSED: 'retest_passed',
+  OVERDUE: 'overdue'
+}
+
+export const MONTHLY_STATUS_NAMES = {
+  [MONTHLY_STATUS.UNTESTED]: '未试',
+  [MONTHLY_STATUS.ABNORMAL]: '异常',
+  [MONTHLY_STATUS.RETEST_PASSED]: '复测通过',
+  [MONTHLY_STATUS.OVERDUE]: '逾期'
+}
+
+export const MONTHLY_STATUS_COLORS = {
+  [MONTHLY_STATUS.UNTESTED]: '#8c8c8c',
+  [MONTHLY_STATUS.ABNORMAL]: '#ff4d4f',
+  [MONTHLY_STATUS.RETEST_PASSED]: '#52c41a',
+  [MONTHLY_STATUS.OVERDUE]: '#fa8c16'
+}
+
 export const TEST_STATUS = {
   DRAFT: 'draft',
   DUTY_DONE: 'duty_done',
@@ -113,6 +134,7 @@ export const testRecords = [
     dutyDate: '2026-05-15 08:30',
     waterPressure: 0.85,
     powerSupply: '正常',
+    liquidLevel: 420,
     maintenancePerson: '李工',
     maintenanceDate: '2026-05-15 09:00',
     usedPump: 'main',
@@ -136,6 +158,7 @@ export const testRecords = [
     dutyDate: '2026-05-20 08:00',
     waterPressure: 0.75,
     powerSupply: '正常',
+    liquidLevel: 380,
     maintenancePerson: '赵工',
     maintenanceDate: '2026-05-20 09:30',
     usedPump: 'main',
@@ -162,6 +185,7 @@ export const testRecords = [
     dutyDate: '2026-05-10 07:30',
     waterPressure: 0.80,
     powerSupply: '正常',
+    liquidLevel: 120,
     maintenancePerson: '孙工',
     maintenanceDate: '2026-05-10 08:45',
     usedPump: 'backup',
@@ -187,6 +211,7 @@ export const testRecords = [
     dutyDate: '2026-05-25 09:00',
     waterPressure: 0.90,
     powerSupply: '正常',
+    liquidLevel: 500,
     maintenancePerson: '',
     maintenanceDate: '',
     usedPump: '',
@@ -210,6 +235,7 @@ export const testRecords = [
     dutyDate: '2026-04-18 08:00',
     waterPressure: 0.88,
     powerSupply: '正常',
+    liquidLevel: 450,
     maintenancePerson: '李工',
     maintenanceDate: '2026-04-18 09:00',
     usedPump: 'backup',

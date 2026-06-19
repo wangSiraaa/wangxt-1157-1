@@ -34,11 +34,14 @@ export default function TestRecordDetail() {
     testRecords,
     currentRole,
     pumpRooms,
+    retestReminders,
     updateTestRecord,
     addTestRecord,
     checkCanStartTest,
     checkCanSubmitQualified,
-    checkCanClose
+    checkCanClose,
+    assignRetest,
+    isOverdue
   } = useApp()
 
   const isNew = location.state?.isNew
@@ -71,14 +74,22 @@ export default function TestRecordDetail() {
     supervisorPerson: ''
   })
   const [activeTab, setActiveTab] = useState('info')
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [currentAssignItem, setCurrentAssignItem] = useState(null)
+  const [assignForm, setAssignForm] = useState({
+    assignee: '',
+    dueDate: ''
+  })
 
   useEffect(() => {
     if (isNew && newRecordData) {
+      const roomData = pumpRooms.find(r => r.id === newRecordData.roomId)
       setRecord(newRecordData)
       setEditing(true)
       setDutyForm({
         waterPressure: '0.85',
         powerSupply: '正常',
+        liquidLevel: roomData?.currentLevel?.toString() || '',
         dutyPerson: roleUserNames[currentRole]
       })
       setAbnormalList([])
@@ -89,6 +100,7 @@ export default function TestRecordDetail() {
         setDutyForm({
           waterPressure: found.waterPressure || '',
           powerSupply: found.powerSupply || '',
+          liquidLevel: found.liquidLevel?.toString() || '',
           dutyPerson: found.dutyPerson || ''
         })
         setMaintenanceForm({
@@ -126,12 +138,13 @@ export default function TestRecordDetail() {
   const canClose = currentRole === ROLES.SUPERVISOR &&
     (record.status === TEST_STATUS.ABNORMAL)
 
-  const levelCheckResult = checkCanStartTest(record.roomId)
+  const levelCheckResult = checkCanStartTest(record.roomId, dutyForm.liquidLevel)
 
   const handleDutySubmit = () => {
     const errs = []
     if (!dutyForm.waterPressure) errs.push('请填写水压')
     if (!dutyForm.powerSupply) errs.push('请选择电源状态')
+    if (!dutyForm.liquidLevel) errs.push('请填写水池液位')
     if (!dutyForm.dutyPerson) errs.push('请填写值班人员')
 
     if (!levelCheckResult.canStart) {
@@ -148,6 +161,7 @@ export default function TestRecordDetail() {
       ...record,
       waterPressure: parseFloat(dutyForm.waterPressure),
       powerSupply: dutyForm.powerSupply,
+      liquidLevel: parseFloat(dutyForm.liquidLevel),
       dutyPerson: dutyForm.dutyPerson,
       dutyDate: now,
       status: TEST_STATUS.DUTY_DONE
@@ -270,6 +284,34 @@ export default function TestRecordDetail() {
     setAbnormalList(abnormalList.map(a =>
       a.id === itemId ? { ...a, retested: !a.retested } : a
     ))
+  }
+
+  const openAssignModal = (item) => {
+    setCurrentAssignItem(item)
+    setAssignForm({
+      assignee: '赵工',
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    })
+    setAssignModalOpen(true)
+  }
+
+  const handleAssignRetest = () => {
+    if (!assignForm.assignee) {
+      setErrors(['请选择负责人'])
+      return
+    }
+    if (!assignForm.dueDate) {
+      setErrors(['请选择截止日期'])
+      return
+    }
+
+    if (assignRetest && currentAssignItem) {
+      assignRetest(id, currentAssignItem.id, assignForm.assignee, assignForm.dueDate)
+    }
+
+    setAssignModalOpen(false)
+    setCurrentAssignItem(null)
+    setErrors([])
   }
 
   const getLevelClass = (level) => {
@@ -453,6 +495,26 @@ export default function TestRecordDetail() {
                           <option value="异常">异常</option>
                         </select>
                       </div>
+                      <div className="form-item">
+                        <label className="form-label">水池液位 (m³)</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={dutyForm.liquidLevel}
+                          onChange={(e) => setDutyForm({ ...dutyForm, liquidLevel: e.target.value })}
+                          placeholder="请输入水池液位"
+                          min="0"
+                          step="1"
+                        />
+                        {room && (
+                          <div className="text-sm text-muted mt-1">
+                            最低液位要求: {room.minLevel} m³
+                            {parseFloat(dutyForm.liquidLevel) < room.minLevel && dutyForm.liquidLevel && (
+                              <span className="text-danger"> ⚠️ 液位过低</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="form-item">
                       <label className="form-label">值班人员</label>
@@ -468,8 +530,10 @@ export default function TestRecordDetail() {
                       <button
                         className="btn btn-primary"
                         onClick={handleDutySubmit}
+                        disabled={!levelCheckResult.canStart}
+                        title={!levelCheckResult.canStart ? levelCheckResult.reason : ''}
                       >
-                        提交登记
+                        {!levelCheckResult.canStart ? '试泵已阻断，请先补水' : '提交登记'}
                       </button>
                       <button
                         className="btn btn-default"
@@ -489,6 +553,15 @@ export default function TestRecordDetail() {
                     <div className="detail-item">
                       <span className="detail-label">电源状态</span>
                       <span className="detail-value">{record.powerSupply || '-'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="detail-label">水池液位</span>
+                      <span className="detail-value">
+                        {record.liquidLevel || '-'} m³
+                        {room && record.liquidLevel < room.minLevel && (
+                          <span className="text-danger" style={{ marginLeft: 8 }}>⚠️ 过低</span>
+                        )}
+                      </span>
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">值班人员</span>
@@ -746,32 +819,58 @@ export default function TestRecordDetail() {
                   <div className="empty">暂无异常项</div>
                 ) : (
                   <div>
-                    {abnormalList.map(item => (
-                      <div key={item.id} className={`abnormal-item ${item.retested ? 'retested' : ''}`}>
-                        <div className="abnormal-item-header">
-                          <div className="flex items-center gap-2">
-                            <span className="abnormal-item-name">{item.item}</span>
-                            <span className={`level-tag ${getLevelClass(item.level)}`}>
-                              {item.level === 'major' ? '严重' : '一般'}
-                            </span>
+                    {abnormalList.map(item => {
+                      const reminder = retestReminders.find(
+                        r => r.testId === id && r.abnormalItemId === item.id && r.status === 'pending'
+                      )
+                      const hasOverdueReminder = reminder && isOverdue(reminder.dueDate)
+                      return (
+                        <div key={item.id} className={`abnormal-item ${item.retested ? 'retested' : ''}`}>
+                          <div className="abnormal-item-header">
+                            <div className="flex items-center gap-2">
+                              <span className="abnormal-item-name">{item.item}</span>
+                              <span className={`level-tag ${getLevelClass(item.level)}`}>
+                                {item.level === 'major' ? '严重' : '一般'}
+                              </span>
+                              {hasOverdueReminder && (
+                                <span className="text-danger text-sm">⚠️ 复测逾期</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {canSupervise && !item.retested && (
+                                <button
+                                  className="btn btn-sm btn-warning"
+                                  onClick={() => openAssignModal(item)}
+                                >
+                                  派复测
+                                </button>
+                              )}
+                              {canSupervise && (
+                                <button
+                                  className={`btn btn-sm ${item.retested ? 'btn-default' : 'btn-success'}`}
+                                  onClick={() => toggleRetest(item.id)}
+                                >
+                                  {item.retested ? '取消复测' : '标记已复测'}
+                                </button>
+                              )}
+                              <span className={`status-tag ${item.retested ? 'status-normal' : 'status-pending'}`}>
+                                {item.retested ? '已复测' : '待复测'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {canSupervise && (
-                              <button
-                                className={`btn btn-sm ${item.retested ? 'btn-default' : 'btn-success'}`}
-                                onClick={() => toggleRetest(item.id)}
-                              >
-                                {item.retested ? '取消复测' : '标记已复测'}
-                              </button>
-                            )}
-                            <span className={`status-tag ${item.retested ? 'status-normal' : 'status-pending'}`}>
-                              {item.retested ? '已复测' : '待复测'}
-                            </span>
-                          </div>
+                          <div className="abnormal-item-desc">{item.description}</div>
+                          {reminder && (
+                            <div className="text-sm text-muted mt-1">
+                              📋 复测负责人：{reminder.assignee} | 截止日期：
+                              <span className={hasOverdueReminder ? 'text-danger' : ''}>
+                                {reminder.dueDate}
+                                {hasOverdueReminder && ' (已逾期)'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                        <div className="abnormal-item-desc">{item.description}</div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -779,7 +878,7 @@ export default function TestRecordDetail() {
               {canSupervise && abnormalList.length > 0 && (
                 <div className="alert alert-info">
                   <span>ℹ️</span>
-                  <span>点击"标记已复测"来记录异常项的复测状态。所有异常项复测完成后才能关闭记录。</span>
+                  <span>点击"派复测"分配复测任务给维保人员。所有异常项复测完成后才能关闭记录。</span>
                 </div>
               )}
 
@@ -925,6 +1024,72 @@ export default function TestRecordDetail() {
           </div>
         </div>
       </div>
+
+      {assignModalOpen && (
+        <div className="modal-overlay" onClick={() => setAssignModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">
+                派复测 - {currentAssignItem?.item}
+              </div>
+              <button
+                className="modal-close"
+                onClick={() => setAssignModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-item">
+                <label className="form-label">异常描述</label>
+                <div className="text-muted">{currentAssignItem?.description}</div>
+              </div>
+              <div className="form-item">
+                <label className="form-label">严重程度</label>
+                <span className={`level-tag ${currentAssignItem?.level === 'major' ? 'level-major' : 'level-minor'}`}>
+                  {currentAssignItem?.level === 'major' ? '严重' : '一般'}
+                </span>
+              </div>
+              <div className="form-item">
+                <label className="form-label">负责人</label>
+                <select
+                  className="form-select"
+                  value={assignForm.assignee}
+                  onChange={(e) => setAssignForm({ ...assignForm, assignee: e.target.value })}
+                >
+                  <option value="">请选择负责人</option>
+                  <option value="李工">维保李工</option>
+                  <option value="赵工">维保赵工</option>
+                  <option value="孙工">维保孙工</option>
+                </select>
+              </div>
+              <div className="form-item">
+                <label className="form-label">截止日期</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={assignForm.dueDate}
+                  onChange={(e) => setAssignForm({ ...assignForm, dueDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-default"
+                onClick={() => setAssignModalOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleAssignRetest}
+              >
+                确认派单
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

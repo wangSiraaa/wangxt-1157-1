@@ -1,13 +1,18 @@
 import React, { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
+import { MONTHLY_STATUS, MONTHLY_STATUS_NAMES, MONTHLY_STATUS_COLORS } from '../data/mockData'
 
 export default function MonthlyStats() {
-  const { monthlyStats, testRecords, pumpRooms } = useApp()
+  const { monthlyStats, testRecords, pumpRooms, getMonthlyStatsForMonth, monthlyClosedLoopStats, getRecordMonthlyStatus } = useApp()
   const [selectedMonth, setSelectedMonth] = useState('2026-05')
 
   const monthRecords = useMemo(() => {
     return testRecords.filter(r => r.month === selectedMonth)
   }, [testRecords, selectedMonth])
+
+  const closedLoopStats = useMemo(() => {
+    return getMonthlyStatsForMonth(selectedMonth)
+  }, [getMonthlyStatsForMonth, selectedMonth])
 
   const monthStats = useMemo(() => {
     const records = monthRecords
@@ -45,11 +50,20 @@ export default function MonthlyStats() {
 
   const maxValue = Math.max(...chartData.map(d => d.tested))
 
+  const closedLoopMaxValue = Math.max(
+    ...monthlyClosedLoopStats.map(d => Math.max(
+      d.statusCounts[MONTHLY_STATUS.RETEST_PASSED],
+      d.statusCounts[MONTHLY_STATUS.ABNORMAL],
+      d.statusCounts[MONTHLY_STATUS.UNTESTED],
+      d.statusCounts[MONTHLY_STATUS.OVERDUE]
+    ))
+  )
+
   return (
     <div>
       <div className="card">
         <div className="card-header">
-          <div className="card-title">{selectedMonth}月度统计概览</div>
+          <div className="card-title">{selectedMonth}月度闭环统计</div>
           <select
             className="filter-select"
             value={selectedMonth}
@@ -68,29 +82,120 @@ export default function MonthlyStats() {
               <div className="stat-label">泵房总数</div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon stat-icon-green">✅</div>
-              <div className="stat-value">{monthStats.tested}</div>
-              <div className="stat-label">已试泵 ({monthStats.testRate}%)</div>
+              <div className="stat-icon" style={{ background: '#f5f5f5', color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.UNTESTED] }}>⏳</div>
+              <div className="stat-value" style={{ color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.UNTESTED] }}>
+                {closedLoopStats.statusCounts[MONTHLY_STATUS.UNTESTED]}
+              </div>
+              <div className="stat-label">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.UNTESTED]}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon stat-icon-green">🏆</div>
-              <div className="stat-value">{monthStats.qualified}</div>
-              <div className="stat-label">合格数</div>
+              <div className="stat-icon" style={{ background: '#fff2f0', color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.ABNORMAL] }}>⚠️</div>
+              <div className="stat-value" style={{ color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.ABNORMAL] }}>
+                {closedLoopStats.statusCounts[MONTHLY_STATUS.ABNORMAL]}
+              </div>
+              <div className="stat-label">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.ABNORMAL]}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon stat-icon-red">⚠️</div>
-              <div className="stat-value">{monthStats.abnormal}</div>
-              <div className="stat-label">异常泵房</div>
+              <div className="stat-icon" style={{ background: '#f6ffed', color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.RETEST_PASSED] }}>✅</div>
+              <div className="stat-value" style={{ color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.RETEST_PASSED] }}>
+                {closedLoopStats.statusCounts[MONTHLY_STATUS.RETEST_PASSED]}
+              </div>
+              <div className="stat-label">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.RETEST_PASSED]}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon stat-icon-orange">⏳</div>
-              <div className="stat-value">{monthStats.pending}</div>
-              <div className="stat-label">待处理</div>
+              <div className="stat-icon" style={{ background: '#fff7e6', color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.OVERDUE] }}>⏰</div>
+              <div className="stat-value" style={{ color: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.OVERDUE] }}>
+                {closedLoopStats.statusCounts[MONTHLY_STATUS.OVERDUE]}
+              </div>
+              <div className="stat-label">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.OVERDUE]}</div>
             </div>
             <div className="stat-card">
               <div className="stat-icon stat-icon-purple">🔄</div>
-              <div className="stat-value">{monthStats.rotationRate}%</div>
+              <div className="stat-value">{closedLoopStats.rotationRate}%</div>
               <div className="stat-label">主备泵轮换率</div>
+            </div>
+          </div>
+
+          {closedLoopStats.statusCounts[MONTHLY_STATUS.OVERDUE] > 0 && (
+            <div className="alert alert-error mt-4">
+              <span>⚠️</span>
+              <span>有 {closedLoopStats.statusCounts[MONTHLY_STATUS.OVERDUE]} 个泵房月度试泵已逾期，请尽快处理</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">月度闭环分布</div>
+        </div>
+        <div className="card-body">
+          <div className="chart-container" style={{ height: '220px' }}>
+            <div className="bar-chart stacked-bar-chart">
+              {monthlyClosedLoopStats.map(item => {
+                const total = item.statusCounts[MONTHLY_STATUS.UNTESTED] +
+                  item.statusCounts[MONTHLY_STATUS.ABNORMAL] +
+                  item.statusCounts[MONTHLY_STATUS.RETEST_PASSED] +
+                  item.statusCounts[MONTHLY_STATUS.OVERDUE]
+                const untestedH = closedLoopMaxValue > 0 ? (item.statusCounts[MONTHLY_STATUS.UNTESTED] / closedLoopMaxValue) * 100 : 0
+                const abnormalH = closedLoopMaxValue > 0 ? (item.statusCounts[MONTHLY_STATUS.ABNORMAL] / closedLoopMaxValue) * 100 : 0
+                const retestH = closedLoopMaxValue > 0 ? (item.statusCounts[MONTHLY_STATUS.RETEST_PASSED] / closedLoopMaxValue) * 100 : 0
+                const overdueH = closedLoopMaxValue > 0 ? (item.statusCounts[MONTHLY_STATUS.OVERDUE] / closedLoopMaxValue) * 100 : 0
+
+                return (
+                  <div key={item.month} className="bar-item stacked-bar-item">
+                    <div className="stacked-bar">
+                      {item.statusCounts[MONTHLY_STATUS.OVERDUE] > 0 && (
+                        <div
+                          className="bar-segment"
+                          style={{ height: `${overdueH}%`, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.OVERDUE] }}
+                          title={`逾期: ${item.statusCounts[MONTHLY_STATUS.OVERDUE]}`}
+                        />
+                      )}
+                      {item.statusCounts[MONTHLY_STATUS.ABNORMAL] > 0 && (
+                        <div
+                          className="bar-segment"
+                          style={{ height: `${abnormalH}%`, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.ABNORMAL] }}
+                          title={`异常: ${item.statusCounts[MONTHLY_STATUS.ABNORMAL]}`}
+                        />
+                      )}
+                      {item.statusCounts[MONTHLY_STATUS.UNTESTED] > 0 && (
+                        <div
+                          className="bar-segment"
+                          style={{ height: `${untestedH}%`, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.UNTESTED] }}
+                          title={`未试: ${item.statusCounts[MONTHLY_STATUS.UNTESTED]}`}
+                        />
+                      )}
+                      {item.statusCounts[MONTHLY_STATUS.RETEST_PASSED] > 0 && (
+                        <div
+                          className="bar-segment"
+                          style={{ height: `${retestH}%`, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.RETEST_PASSED] }}
+                          title={`复测通过: ${item.statusCounts[MONTHLY_STATUS.RETEST_PASSED]}`}
+                        />
+                      )}
+                    </div>
+                    <div className="bar-label">{item.month}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="flex justify-center gap-6 mt-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div style={{ width: 12, height: 12, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.UNTESTED], borderRadius: 2 }} />
+              <span className="text-muted">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.UNTESTED]}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div style={{ width: 12, height: 12, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.ABNORMAL], borderRadius: 2 }} />
+              <span className="text-muted">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.ABNORMAL]}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div style={{ width: 12, height: 12, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.RETEST_PASSED], borderRadius: 2 }} />
+              <span className="text-muted">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.RETEST_PASSED]}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div style={{ width: 12, height: 12, background: MONTHLY_STATUS_COLORS[MONTHLY_STATUS.OVERDUE], borderRadius: 2 }} />
+              <span className="text-muted">{MONTHLY_STATUS_NAMES[MONTHLY_STATUS.OVERDUE]}</span>
             </div>
           </div>
         </div>
@@ -130,7 +235,7 @@ export default function MonthlyStats() {
 
       <div className="card">
         <div className="card-header">
-          <div className="card-title">各泵房试泵情况</div>
+          <div className="card-title">各泵房月度闭环状态</div>
         </div>
         <div className="card-body">
           <table>
@@ -139,7 +244,7 @@ export default function MonthlyStats() {
                 <th>泵房</th>
                 <th>位置</th>
                 <th>本月试泵</th>
-                <th>状态</th>
+                <th>月度闭环状态</th>
                 <th>异常项</th>
                 <th>主备泵轮换</th>
                 <th>上次试泵</th>
@@ -149,26 +254,23 @@ export default function MonthlyStats() {
               {pumpRooms.map(room => {
                 const record = monthRecords.find(r => r.roomId === room.id)
                 const abnormalCount = record?.abnormalItems?.length || 0
+                const monthlyStatus = record ? getRecordMonthlyStatus(record) : MONTHLY_STATUS.UNTESTED
                 return (
                   <tr key={room.id}>
                     <td className="font-medium">{room.name}</td>
                     <td>{room.location}</td>
                     <td>{record ? '是' : '否'}</td>
                     <td>
-                      {record ? (
-                        <span className={`status-tag ${
-                          record.status === 'qualified' || record.status === 'closed'
-                            ? 'status-normal'
-                            : record.status === 'abnormal'
-                            ? 'status-abnormal'
-                            : 'status-pending'
-                        }`}>
-                          {record.status === 'qualified' || record.status === 'closed' ? '合格' :
-                           record.status === 'abnormal' ? '异常' : '进行中'}
-                        </span>
-                      ) : (
-                        <span className="text-muted">未试泵</span>
-                      )}
+                      <span
+                        className="status-tag"
+                        style={{
+                          background: `${MONTHLY_STATUS_COLORS[monthlyStatus]}15`,
+                          color: MONTHLY_STATUS_COLORS[monthlyStatus],
+                          borderColor: `${MONTHLY_STATUS_COLORS[monthlyStatus]}40`
+                        }}
+                      >
+                        {MONTHLY_STATUS_NAMES[monthlyStatus]}
+                      </span>
                     </td>
                     <td>
                       {abnormalCount > 0
